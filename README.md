@@ -11,7 +11,7 @@
 This project follows Andrej Karpathy’s tutorial ([Youtube Link](https://www.youtube.com/watch?v=l8pRSuU81PU)) and the paper [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) on building the GPT-2 architecture from scratch.
 If you want to see the original implementation is the latest model published openly from Open-AI and it is available on [Hugging Face](https://huggingface.co/openai-community/gpt2) and also the code can be found at their [OpenAI GPT-2 Repo](https://github.com/openai/gpt-2/tree/master/src).
 
-Below you can see the model architecture are reported from pytorch:
+Below you can see the model architecture as reported from pytorch:
 <img src="./assets/gpt2model.png" alt="GPT-2 Model" style="width:550px; border-radius:10px; border:2px solid #eee;" />
 
 You can clearly observe the following:
@@ -20,3 +20,6 @@ You can clearly observe the following:
 - Context length = 1024
 - Embedding Size = 768
 - Output head = Embedding Size → Vocabulary Size
+- And the targeted Layer Normalization placements as described inside the paper
+
+![Layer Norm Placements](./assets/layer_norm_placements.png)
