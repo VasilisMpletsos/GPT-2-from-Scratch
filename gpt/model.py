@@ -11,7 +11,7 @@ from .settings import GPTConfig
 
 
 class GPT2(nn.Module):
-    def __init__(self, config: GPTConfig):
+    def __init__(self, config: GPTConfig = GPTConfig()):
         super().__init__()
 
         self.config = config
@@ -26,6 +26,24 @@ class GPT2(nn.Module):
         )
 
         self.lm_head = nn.Linear(config.n_embedding_size, config.vocab_size, bias=False)
+
+    def forward(self, x):
+        B, T = x.size()
+        assert T <= self.config.context_window, (
+            f"The context window must be less than {self.config.context_window + 1}"
+        )
+
+        positional_number = torch.arange(0, T, dtype=torch.long, device=x.device)
+        pos_embed = self.transformer.wpe(positional_number)
+        tok_embed = self.transformer.wte(x)
+        tokens = pos_embed + tok_embed
+
+        for block in self.transformer.h:
+            tokens = block(tokens)
+
+        tokens = self.transformer.ln_f(tokens)
+        logits = self.lm_head(tokens)
+        return logits
 
     @classmethod
     def load_weights_from_pretrained(cls, hf_model_name: str):

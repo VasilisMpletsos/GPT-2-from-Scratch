@@ -38,8 +38,9 @@ class GPT2Attention(nn.Module):
         attention = F.softmax(attention, dim=-1)
         # attention = self.attn_dropout(attention)
         y = attention @ v
-        y = y.transpose(1, 2).contiguous.view(B, T, C)
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
         y = self.c_proj(y)
+        return y
 
 
 class GPT2MLP(nn.Module):
