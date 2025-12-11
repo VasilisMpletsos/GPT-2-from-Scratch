@@ -27,6 +27,23 @@ class GPT2(nn.Module):
 
         self.lm_head = nn.Linear(config.n_embedding_size, config.vocab_size, bias=False)
 
+        # This shares the same weights for lm_head and wte as used in the original gpt-2 implementation but i dont want to use it
+        # self.transformer.wte.weight = self.lm_head.weight
+
+        # Customly initialize layer parameters
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, "NANOGPT_SCALE_INIT"):
+                std = (2 * self.config.n_layers) ** -0.5
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.constant_(module.bias, 0)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
     def forward(self, x):
         B, T = x.size()
         assert T <= self.config.context_window, (

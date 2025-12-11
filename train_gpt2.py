@@ -1,12 +1,15 @@
+import code
+import time
+
 import torch
 from sklearn.model_selection import train_test_split
 from torch.functional import F
-from torch.optim import AdamW, Muon
+from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from gpt import GPT2
+from gpt import GPT2, GPTConfig
 
 
 class CustomDataset(Dataset):
@@ -26,12 +29,18 @@ class CustomDataset(Dataset):
 if __name__ == "__main__":
     # Settings
     EPOCHS = 20
+    LEARNING_RATE = 1e-3
+
+    torch.set_float32_matmul_precision("high")
 
     # Load Model
-    model = GPT2()
+    # Initializing vocav to 50304 that is power of 2
+    config = GPTConfig(vocab_size=50304)
+    model = GPT2(config)
     tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
+    # model = torch.compile(model)
 
     # Read the dataset
     with open("./tiny_shakespeare.txt", "r") as f:
@@ -49,7 +58,7 @@ if __name__ == "__main__":
     val_dataset = CustomDataset(X_test, y_test)
     val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
-    optimizer = AdamW(model.parameters(), lr=1e-3)
+    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
 
     for epoch in range(EPOCHS):
         train_loss = 0
@@ -59,16 +68,27 @@ if __name__ == "__main__":
         for i, (input, targets) in enumerate(
             tqdm(train_dataloader, desc="Training Step: ")
         ):
+            t0 = time.time()
             input = input.to(device)
             targets = targets.to(device)
             B, T = input.size()
-            predictions = model(input)
+            with torch.autocast(device_type=device, dtype=torch.bfloat16):
+                predictions = model(input)
+                # code.interact(local=locals())
             optimizer.zero_grad()
-            # 50257 is the output possibilities for the whole Vocabulary
-            step_loss = F.cross_entropy(predictions.view(-1, 50257), targets.view(-1))
+            # config.vocab_size is the output possibilities for the whole Vocabulary
+            step_loss = F.cross_entropy(
+                predictions.view(-1, config.vocab_size), targets.view(-1)
+            )
             train_loss += step_loss.item()
             step_loss.backward()
             optimizer.step()
+            torch.cuda.synchronize()
+            t1 = time.time()
+            time_diff = t1 - t0
+            dt = time_diff * 1000
+            tokens_per_sec = (B * T) / time_diff
+            print(f"\ndt: {dt}, tok/sec: {tokens_per_sec}")
             if i % 10 == 0:
                 print(f"Step Loss {i + 1}: {step_loss}")
         train_loss = train_loss / len(train_dataloader)
@@ -82,8 +102,11 @@ if __name__ == "__main__":
             input = input.to(device)
             targets = targets.to(device)
             B, T = input.size()
-            predictions = model(input)
-            step_loss = F.cross_entropy(predictions.view(-1, 50257), targets.view(-1))
+            with torch.autocast(device_type=device, dtype=torch.bfloat16):
+                predictions = model(input)
+            step_loss = F.cross_entropy(
+                predictions.view(-1, config.vocab_size), targets.view(-1)
+            )
             eval_loss += step_loss.item()
         eval_loss = eval_loss / len(val_dataloader)
         print(f"Eval Loss: {eval_loss}")
