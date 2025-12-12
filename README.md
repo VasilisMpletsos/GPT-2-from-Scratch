@@ -26,3 +26,12 @@ You can clearly observe the following:
 
 Additionally i have created my own **custom Cosine Decay Learning Rate Scheduler** that i used in the training process;
 ![Custom Cosine LR Decay](./assets/Custom%20LR%20Decay.png)
+
+## MultiGPU Training
+
+For multi GPU training Data Distributed Parallel is used that spawns the model to each GPU so we can run n \* times training / inference parallel.
+In order to execute the parallel code you have to:
+
+```bash
+torchrun --standalone --nproc_per-node=8 train_gpt2_multi_gpu.py
+```

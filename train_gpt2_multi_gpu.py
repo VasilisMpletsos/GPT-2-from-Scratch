@@ -1,7 +1,9 @@
 import code
+import os
 import time
 
 import torch
+import torch.distributed as dist
 from sklearn.model_selection import train_test_split
 from torch.distributed import destroy_process_group, init_process_group
 from torch.functional import F
@@ -14,6 +16,33 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from gpt import GPT2, CosineLearningDecay, GPTConfig
+
+ddp = int(os.environ.get("RANK", -1)) != -1
+
+# Check if DDP is available on the machine
+if ddp:
+    assert torch.cuda.is_available(), "We need CUDA GPU in order to run DDP"
+    dist.init_process_group(backend="nccl")
+    ddp_rank = int(os.environ["RANK"])
+    ddp_local_rank = int(os.environ["LOCAL_RANK"])
+    ddp_world_size = int(os.environ["WORLD_SIZE"])
+    device = f"cuda: {ddp_local_rank}"
+    torch.cuda.set_device(device=device)
+    master_process = ddp_rank == 0
+else:
+    ddp_rank = 0
+    ddp_local_rank = 0
+    ddp_world_size = 1
+    master_process = True
+
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "gpu"
+    print(f"Using device {device} for training")
+
+torch.manual_seed(1337)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1337)
 
 
 class CustomDataset(Dataset):
@@ -52,7 +81,9 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
-    # model = torch.compile(model)
+    model = torch.compile(model)
+    if ddp:
+        model = DDP(model, device_ids=[ddp_local_rank])
 
     # Read the dataset
     with open("./tiny_shakespeare.txt", "r") as f:
@@ -82,8 +113,9 @@ if __name__ == "__main__":
     for epoch in range(EPOCHS):
         train_loss = 0
         model.train()
-        print("_" * 200)
-        print(f"Epoch: {epoch + 1}")
+        if master_process:
+            print("_" * 200)
+            print(f"Epoch: {epoch + 1}")
 
         # Change Learning Weight
         lr = lr_scheduler.update_lr(epoch)
@@ -109,7 +141,13 @@ if __name__ == "__main__":
                 / GRAD_ACCUMULATION_STEPS
             )
             train_loss += step_loss.item()
+            if ddp:
+                model.require_backward_grad_sync = (
+                    grad_acc_step == GRAD_ACCUMULATION_STEPS - 1
+                )
             step_loss.backward()
+            if ddp:
+                dist.all_reduce(step_loss, op=dist.ReduceOp.AVG)
             grad_acc_step += 1
             if i % 10 == 0:
                 print(f"Step Loss {i + 1}: {step_loss}")
