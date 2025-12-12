@@ -31,14 +31,14 @@ class CustomDataset(Dataset):
 if __name__ == "__main__":
     # Settings
     EPOCHS = 200
-    LEARNING_RATE = 6e-4
+    LEARNING_RATE = 6e-5
     GRAD_ACCUMULATION_STEPS = 4
     gpt2_paper_training_settings = {"betas": (0.9, 0.05), "eps": 1e-8}
     gpt2_paper_lr_scheduler_settings = {
-        "max_lr": 6e-4,
-        "min_lr": 6e-5,
+        "max_lr": 6e-5,
+        "min_lr": 6e-6,
         "max_steps": EPOCHS // 4,
-        "warmup_steps": 10,
+        "warmup_steps": 5,
     }
 
     torch.set_float32_matmul_precision("high")
@@ -90,11 +90,11 @@ if __name__ == "__main__":
         lr = lr_scheduler.update_lr(epoch)
 
         # Iterate whole training examples
+        optimizer.zero_grad()
         for i, (input, targets) in enumerate(
             tqdm(train_dataloader, desc="Training Step: ")
         ):
-            t0 = time.time()
-            optimizer.zero_grad()
+            # t0 = time.time()
             input = input.to(device)
             targets = targets.to(device)
             B, T = input.size()
@@ -103,31 +103,29 @@ if __name__ == "__main__":
                 # code.interact(local=locals())
             # config.vocab_size is the output possibilities for the whole Vocabulary
             # Division by GRAD_ACCUMULATION_STEPS is needed in order to include percentage due to accumulation
-            step_loss = (
-                F.cross_entropy(
-                    predictions.view(-1, config.vocab_size), targets.view(-1)
-                )
-                / GRAD_ACCUMULATION_STEPS
+            step_loss = F.cross_entropy(
+                predictions.view(-1, config.vocab_size), targets.view(-1)
             )
             train_loss += step_loss.item()
-            step_loss.backward()
+            (step_loss / GRAD_ACCUMULATION_STEPS).backward()
             grad_acc_step += 1
-            if i % 10 == 0:
-                print(f"Step Loss {i + 1}: {step_loss}")
+            # if i % 10 == 0:
+            #     print(f"Step Loss {i + 1}: {step_loss}")
 
-            if device == "cuda":
-                torch.cuda.synchronize()
-            t1 = time.time()
-            time_diff = t1 - t0
-            dt = time_diff * 1000
-            tokens_per_sec = (B * T) / time_diff
-            print(f"\ndt: {dt}, tok/sec: {tokens_per_sec}")
+            # if device == "cuda":
+            #     torch.cuda.synchronize()
+            # t1 = time.time()
+            # time_diff = t1 - t0
+            # dt = time_diff * 1000
+            # tokens_per_sec = (B * T) / time_diff
+            # # print(f"\ndt: {dt}, tok/sec: {tokens_per_sec}")
 
             if grad_acc_step == GRAD_ACCUMULATION_STEPS:
                 grad_acc_step = 0
                 # as mentioned in the paper `we clip the global norm of the gradient at 1.0`
                 norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+                optimizer.zero_grad()
 
         train_loss = train_loss / len(train_dataloader)
         print(f"Train Loss: {train_loss}")

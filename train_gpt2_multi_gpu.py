@@ -135,16 +135,15 @@ for epoch in range(EPOCHS):
             # code.interact(local=locals())
         # config.vocab_size is the output possibilities for the whole Vocabulary
         # Division by GRAD_ACCUMULATION_STEPS is needed in order to include percentage due to accumulation
-        step_loss = (
-            F.cross_entropy(predictions.view(-1, config.vocab_size), targets.view(-1))
-            / GRAD_ACCUMULATION_STEPS
+        step_loss = F.cross_entropy(
+            predictions.view(-1, config.vocab_size), targets.view(-1)
         )
         train_loss += step_loss.item()
         if ddp:
             model.require_backward_grad_sync = (
                 grad_acc_step == GRAD_ACCUMULATION_STEPS - 1
             )
-        step_loss.backward()
+        (step_loss / GRAD_ACCUMULATION_STEPS).backward()
         if ddp:
             dist.all_reduce(step_loss, op=dist.ReduceOp.AVG)
         grad_acc_step += 1
