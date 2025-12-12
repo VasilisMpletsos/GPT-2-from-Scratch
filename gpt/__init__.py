@@ -1,4 +1,4 @@
-from .lr_scedulers import CosineLearningDecay
+from .lr_schedulers import CosineLearningDecay
 from .model import GPT2
 from .settings import GPTConfig
 

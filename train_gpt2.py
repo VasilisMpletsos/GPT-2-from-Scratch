@@ -49,6 +49,7 @@ if __name__ == "__main__":
     model = GPT2(config)
     tokenizer = AutoTokenizer.from_pretrained("openai-community/gpt2")
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Detected device {device}")
     model = model.to(device)
     # model = torch.compile(model)
 
@@ -74,7 +75,9 @@ if __name__ == "__main__":
         **gpt2_paper_training_settings,
         fused=False,
     )
-    lr_scheduler = CosineLearningDecay(**gpt2_paper_lr_scheduler_settings)
+    lr_scheduler = CosineLearningDecay(
+        **gpt2_paper_lr_scheduler_settings, optimizer=optimizer
+    )
 
     grad_acc_step = 0
     for epoch in range(EPOCHS):

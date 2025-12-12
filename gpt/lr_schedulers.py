@@ -6,7 +6,7 @@ class CosineLearningDecay:
         self,
         max_lr: float,
         min_lr: float,
-        optimizer=optimizer,
+        optimizer,
         max_steps: int = 100,
         warmup_steps: int = 0,
     ):

@@ -25,13 +25,71 @@ You can clearly observe the following:
 ![Layer Norm Placements](./assets/layer_norm_placements.png)
 
 Additionally i have created my own **custom Cosine Decay Learning Rate Scheduler** that i used in the training process;
+
 ![Custom Cosine LR Decay](./assets/Custom%20LR%20Decay.png)
 
+## Optimization Steps Speedup Training
+
+Many optimization steps where injected including **cpu -> gpu, matmul_precission, autocast to bfloat16, torch.compile, settings of power 2** which all of them provided incremental steps that are presented below in the following table:
+
 ## MultiGPU Training
+
+<table>
+<th>Step</th>
+<th>Note</th>
+<th>Tok/Sec</th>
+<th>Previous Speedup</th>
+<tr>
+    <td>1</td>
+    <td>Simple CPU</td>
+    <td>398</td>
+    <td>x1</td>
+</tr>
+<tr>
+    <td>2</td>
+    <td>Moved to GPU</td>
+    <td>5951</td>
+    <td>x14.95</td>
+</tr>
+<tr>
+    <td>3</td>
+    <td>Switching matmul precsion 'high'</td>
+    <td>7097</td>
+    <td>x1.19</td>
+</tr>
+<tr>
+    <td>4</td>
+    <td>Enabling Autocast to bfloat16</td>
+    <td>18934</td>
+    <td>x2.66</td>
+</tr>
+<tr>
+    <td>5</td>
+    <td>All settings in **2</td>
+    <td>21812</td>
+    <td>x1.15</td>
+</tr>
+<tr>
+    <td>6</td>
+    <td>Using torch.compile</td>
+    <td>-</td>
+    <td>Only on cloud GPU but on average x1.12</td>
+</tr>
+<tr>
+    <td>Total</td>
+    <td></td>
+    <td></td>
+    <td>x61.37</td>
+</tr>
+</table>
 
 For multi GPU training Data Distributed Parallel is used that spawns the model to each GPU so we can run n \* times training / inference parallel.
 In order to execute the parallel code you have to:
 
 ```bash
-torchrun --standalone --nproc_per-node=8 train_gpt2_multi_gpu.py
+torchrun --standalone --nproc-per-node=4 train_gpt2_multi_gpu.py
 ```
+
+![MultiGPU](./assets/MultiGPU.png)
+
+Achieving the stuggering **230k tok\sec on 4 Nvidia 3090 cluster**.
