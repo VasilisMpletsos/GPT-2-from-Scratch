@@ -8,7 +8,7 @@
 
 ## 🚀 About This Project
 
-This project follows Andrej Karpathy’s tutorial ([Youtube Link](https://www.youtube.com/watch?v=l8pRSuU81PU)) and the paper [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) on building the GPT-2 architecture from scratch.
+This project follows Andrej Karpathy’s tutorial ([Youtube Link](https://www.youtube.com/watch?v=l8pRSuU81PU)) and the paper [Language Models are Unsupervised Multitask Learners](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) on building the GPT-2 architecture from scratch while many times visiting also [Language Models are Few-Shot Learners](https://arxiv.org/pdf/2005.14165) (GPT-3 paper).
 If you want to see the original implementation is the latest model published openly from Open-AI and it is available on [Hugging Face](https://huggingface.co/openai-community/gpt2) and also the code can be found at their [OpenAI GPT-2 Repo](https://github.com/openai/gpt-2/tree/master/src).
 
 Below you can see the model architecture as reported from pytorch:
@@ -23,3 +23,6 @@ You can clearly observe the following:
 - And the targeted Layer Normalization placements as described inside the paper
 
 ![Layer Norm Placements](./assets/layer_norm_placements.png)
+
+Additionally i have created my own **custom Cosine Decay Learning Rate Scheduler** that i used in the training process;
+![Custom Cosine LR Decay](./assets/Custom%20LR%20Decay.png)
