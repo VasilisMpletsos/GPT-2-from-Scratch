@@ -83,21 +83,25 @@ model = torch.compile(model)
 if ddp:
     model = DDP(model, device_ids=[ddp_local_rank])
 
-# Read the dataset
-with open("./tiny_shakespeare.txt", "r") as f:
-    text = f.read()
+# # Read the dataset
+# with open("./tiny_shakespeare.txt", "r") as f:
+#     text = f.read()
 
-tokens = tokenizer.encode(text, return_tensors="pt")
-keep_tokens = 1024 * 330 + 1
-tokens = tokens[:, :keep_tokens]
-input = tokens[:, :-1].view(-1, 1024)
-targets = tokens[:, 1:].view(-1, 1024)
+# tokens = tokenizer.encode(text, return_tensors="pt")
+# keep_tokens = 1024 * 330 + 1
+# tokens = tokens[:, :keep_tokens]
+# input = tokens[:, :-1].view(-1, 1024)
+# targets = tokens[:, 1:].view(-1, 1024)
+local_dir = "edu_fineweb_10b"
+tokens = torch.load(f"./{local_dir}/split_{ddp_rank + 1}.pt")
+input = tokens["train"]
+targets = tokens["target"]
 
-X_train, X_test, y_train, y_test = train_test_split(input, targets, test_size=0.1)
-train_dataset = CustomDataset(X_train, y_train)
-train_dataloader = DataLoader(train_dataset, batch_size=24, shuffle=True)
-val_dataset = CustomDataset(X_test, y_test)
-val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+# X_train, X_test, y_train, y_test = train_test_split(input, targets, test_size=0.1)
+train_dataset = CustomDataset(input, targets)
+train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+# val_dataset = CustomDataset(X_test, y_test)
+# val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False)
 
 optimizer = AdamW(
     model.parameters(),
@@ -147,9 +151,9 @@ for epoch in range(EPOCHS):
         if ddp:
             dist.all_reduce(step_loss, op=dist.ReduceOp.AVG)
         grad_acc_step += 1
-        # if master_process:
-        #     if i % 10 == 0:
-        #         print(f"Step Loss {i + 1}: {step_loss}")
+        if master_process:
+            if i % 100 == 0:
+                print(f"Step Loss {i + 1}: {step_loss}")
 
         # if device.startswith("cuda"):
         #     torch.cuda.synchronize()
