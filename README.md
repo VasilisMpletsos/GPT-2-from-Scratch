@@ -32,8 +32,6 @@ Additionally i have created my own **custom Cosine Decay Learning Rate Scheduler
 
 Many optimization steps where injected including **cpu -> gpu, matmul_precission, autocast to bfloat16, torch.compile, settings of power 2** which all of them provided incremental steps that are presented below in the following table:
 
-## MultiGPU Training
-
 <table>
 <th>Step</th>
 <th>Note</th>
@@ -82,6 +80,8 @@ Many optimization steps where injected including **cpu -> gpu, matmul_precission
     <td>x61.37</td>
 </tr>
 </table>
+
+## MultiGPU Training
 
 For multi GPU training Data Distributed Parallel is used that spawns the model to each GPU so we can run n \* times training / inference parallel.
 In order to execute the parallel code you have to:
