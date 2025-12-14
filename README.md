@@ -93,3 +93,8 @@ torchrun --standalone --nproc-per-node=4 train_gpt2_multi_gpu.py
 ![MultiGPU](./assets/MultiGPU.png)
 
 Achieving the stuggering **230k tok\sec on 4 Nvidia 3090 cluster**.
+And for reporting:
+
+```bash
+
+```

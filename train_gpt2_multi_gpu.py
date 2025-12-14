@@ -1,4 +1,3 @@
-import code
 import os
 import time
 
@@ -12,6 +11,7 @@ from torch.optim import AdamW
 
 # from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
@@ -40,6 +40,7 @@ else:
         device = "gpu"
     print(f"Using device {device} for training")
 
+
 torch.manual_seed(1337)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(1337)
@@ -62,6 +63,7 @@ class CustomDataset(Dataset):
 # Settings
 EPOCHS = 200
 LEARNING_RATE = 1e-5
+BATCH_SIZE = 16
 GRAD_ACCUMULATION_STEPS = 4
 gpt2_paper_training_settings = {"betas": (0.9, 0.05), "eps": 1e-8}
 gpt2_paper_lr_scheduler_settings = {
@@ -70,6 +72,9 @@ gpt2_paper_lr_scheduler_settings = {
     "max_steps": EPOCHS // 4,
     "warmup_steps": 0,
 }
+
+if master_process:
+    writer = SummaryWriter(log_dir="./logs/gpt2_from_scratch_fine_web")
 
 torch.set_float32_matmul_precision("high")
 
@@ -97,11 +102,11 @@ tokens = torch.load(f"./{local_dir}/split_{ddp_rank + 1}.pt")
 input = tokens["train"]
 targets = tokens["target"]
 
-# X_train, X_test, y_train, y_test = train_test_split(input, targets, test_size=0.1)
-train_dataset = CustomDataset(input, targets)
-train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-# val_dataset = CustomDataset(X_test, y_test)
-# val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+X_train, X_test, y_train, y_test = train_test_split(input, targets, test_size=0.02)
+train_dataset = CustomDataset(X_train, y_train)
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_dataset = CustomDataset(X_test, y_test)
+val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 optimizer = AdamW(
     model.parameters(),
@@ -117,6 +122,8 @@ model.train()
 device_type = "cuda" if "cuda" in device else "cpu"
 grad_acc_step = 0
 optimizer.zero_grad()
+train_dataloader_size = len(train_dataloader)
+val_dataloader_size = len(train_dataloader)
 for epoch in range(EPOCHS):
     train_loss = 0
     if master_process:
@@ -142,7 +149,7 @@ for epoch in range(EPOCHS):
         step_loss = F.cross_entropy(
             predictions.view(-1, config.vocab_size), targets.view(-1)
         )
-        train_loss += step_loss.item()
+        train_loss += step_loss.detach()
         if ddp:
             model.require_backward_grad_sync = (
                 grad_acc_step == GRAD_ACCUMULATION_STEPS - 1
@@ -152,8 +159,10 @@ for epoch in range(EPOCHS):
             dist.all_reduce(step_loss, op=dist.ReduceOp.AVG)
         grad_acc_step += 1
         if master_process:
-            if i % 100 == 0:
-                print(f"Step Loss {i + 1}: {step_loss}")
+            if i % 50 == 0:
+                writer.add_scalar(
+                    "Step_Loss/train", step_loss, epoch * train_dataloader_size + i
+                )
 
         # if device.startswith("cuda"):
         #     torch.cuda.synchronize()
@@ -171,6 +180,36 @@ for epoch in range(EPOCHS):
             # if master_process:
             #     print(f"\ndt: {dt}, tok/sec: {tokens_per_sec}")
 
-    train_loss = train_loss / len(train_dataloader)
+        if i % 7000 == 0:
+            validation_loss = 0
+            with torch.no_grad():
+                for i, (input, targets) in enumerate(
+                    tqdm(val_dataloader, desc="Validation Step: ")
+                ):
+                    input = input.to(device)
+                    targets = targets.to(device)
+                    B, T = input.size()
+                    with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                        predictions = model(input)
+                    step_loss = F.cross_entropy(
+                        predictions.view(-1, config.vocab_size), targets.view(-1)
+                    )
+                    validation_loss += step_loss.detach()
+            if ddp:
+                dist.all_reduce(validation_loss, op=dist.ReduceOp.AVG)
+            validation_loss = validation_loss / val_dataloader_size
+            if master_process:
+                writer.add_scalar(
+                    "Step_Loss/val",
+                    validation_loss,
+                    epoch * train_dataloader_size + i,
+                )
+
+    train_loss = train_loss / train_dataloader_size
+    if ddp:
+        dist.all_reduce(train_loss, op=dist.ReduceOp.AVG)
     if master_process:
-        print(f"Train Loss: {train_loss}")
+        writer.add_scalar("Epoch_Loss/train", train_loss.item(), epoch)
+
+if master_process:
+    writer.close()

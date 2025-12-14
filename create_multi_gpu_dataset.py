@@ -2,12 +2,11 @@ import os
 
 import datasets
 import torch
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
-N_SPLITS = 4
-from tqdm import tqdm
-
 if __name__ == "__main__":
+    N_SPLITS = 4
     local_dir = "edu_fineweb_10b"
     # dataset_name = "Amod/mental_health_counseling_conversations"
     dataset_name = "HuggingFaceFW/fineweb-edu"
@@ -19,7 +18,7 @@ if __name__ == "__main__":
     os.makedirs(DATADIR, exist_ok=True)
 
     dataset = datasets.load_dataset(dataset_name, subdataset_name, split="train")
-    dataset = dataset.shuffle(seed=42).select(range(1_000_000))
+    dataset = dataset.shuffle(seed=42).select(range(4_000_000))
     # dataset = datasets.load_dataset(dataset_name, split="train")
 
     def tokenize_content(row):
@@ -36,14 +35,12 @@ if __name__ == "__main__":
         return {"tokens": encoded_input}
 
     dataset = dataset.map(
-        tokenize_content, remove_columns=dataset.column_names, num_proc=64
+        tokenize_content, remove_columns=dataset.column_names, num_proc=26
     )
 
     token_list = []
     for row in tqdm(dataset["tokens"]):
         token_list.extend(row)
-
-    breakpoint()
 
     tokens = torch.tensor(token_list, dtype=torch.long)
 
