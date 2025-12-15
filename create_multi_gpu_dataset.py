@@ -1,3 +1,4 @@
+import itertools
 import os
 
 import datasets
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     os.makedirs(DATADIR, exist_ok=True)
 
     dataset = datasets.load_dataset(dataset_name, subdataset_name, split="train")
-    dataset = dataset.shuffle(seed=42).select(range(4_000_000))
+    dataset = dataset.shuffle(seed=42).select(range(100_000))
     # dataset = datasets.load_dataset(dataset_name, split="train")
 
     def tokenize_content(row):
@@ -35,13 +36,10 @@ if __name__ == "__main__":
         return {"tokens": encoded_input}
 
     dataset = dataset.map(
-        tokenize_content, remove_columns=dataset.column_names, num_proc=26
+        tokenize_content, remove_columns=dataset.column_names, num_proc=170, batched=False
     )
 
-    token_list = []
-    for row in tqdm(dataset["tokens"]):
-        token_list.extend(row)
-
+    token_list = [token for tokens in dataset["tokens"] for token in tokens]
     tokens = torch.tensor(token_list, dtype=torch.long)
 
     truncate_tokens_point = (tokens.shape[0] // 1024) * 1024
