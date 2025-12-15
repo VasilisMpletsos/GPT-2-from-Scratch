@@ -19,6 +19,8 @@ from gpt import GPT2, CosineLearningDecay, GPTConfig
 
 ddp = int(os.environ.get("RANK", -1)) != -1
 
+best_val_loss = float("inf")
+
 # Check if DDP is available on the machine
 if ddp:
     assert torch.cuda.is_available(), "We need CUDA GPU in order to run DDP"
@@ -204,6 +206,14 @@ for epoch in range(EPOCHS):
                     validation_loss,
                     epoch * train_dataloader_size + i,
                 )
+
+                if validation_loss < best_val_loss:
+                    best_val_loss = validation_loss
+                    torch.save(
+                        model.module.state_dict() if ddp else model.state_dict(),
+                        f"./gpt2_from_scratch_fine_web_best_model.pth",
+                    )
+                    print(f"New best model saved with validation loss: {best_val_loss}")
 
     train_loss = train_loss / train_dataloader_size
     if ddp:
