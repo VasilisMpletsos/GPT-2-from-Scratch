@@ -87,14 +87,16 @@ For multi GPU training Data Distributed Parallel is used that spawns the model t
 In order to execute the parallel code you have to:
 
 ```bash
-torchrun --standalone --nproc-per-node=4 train_gpt2_multi_gpu.py
+ulimit -c unlimited
+torchrun --standalone --nproc-per-node=12 train_gpt2_multi_gpu.py
+torchrun --standalone --nproc-per-node=12 train_gpt2_multi_gpu_streamed_fineweb_dataset.py
 ```
 
 ![MultiGPU](./assets/MultiGPU.png)
 
-Achieving the stuggering **230k tok\sec on 4 Nvidia 3090 cluster**.
+Achieving **stuggering speeds tok\sec on 8 Nvidia 4090 cluster**.
 And for reporting:
 
 ```bash
-
+tensorboard --logdir "./logs" --port 7777 --host 0.0.0.0
 ```

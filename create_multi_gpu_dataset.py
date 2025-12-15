@@ -7,7 +7,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 if __name__ == "__main__":
-    N_SPLITS = 4
+    N_SPLITS = 6
     local_dir = "edu_fineweb_10b"
     # dataset_name = "Amod/mental_health_counseling_conversations"
     dataset_name = "HuggingFaceFW/fineweb-edu"
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     os.makedirs(DATADIR, exist_ok=True)
 
     dataset = datasets.load_dataset(dataset_name, subdataset_name, split="train")
-    dataset = dataset.shuffle(seed=42).select(range(100_000))
+    dataset = dataset.shuffle(seed=42).select(range(1_200_000))
     # dataset = datasets.load_dataset(dataset_name, split="train")
 
     def tokenize_content(row):
@@ -33,10 +33,15 @@ if __name__ == "__main__":
             # max_length=1024,
         )
 
-        return {"tokens": encoded_input}
+        size = len(encoded_input)
+
+        return {"tokens": encoded_input, "size": size}
 
     dataset = dataset.map(
-        tokenize_content, remove_columns=dataset.column_names, num_proc=170, batched=False
+        tokenize_content,
+        remove_columns=dataset.column_names,
+        num_proc=256,
+        batched=False,
     )
 
     token_list = [token for tokens in dataset["tokens"] for token in tokens]
@@ -45,11 +50,8 @@ if __name__ == "__main__":
     truncate_tokens_point = (tokens.shape[0] // 1024) * 1024
     tokens = tokens[: truncate_tokens_point + 1]
 
-    train_inputs = tokens[:-1]
-    target_inputs = tokens[1:]
-
-    train_inputs = train_inputs.view(-1, 1024)
-    target_inputs = target_inputs.view(-1, 1024)
+    train_inputs = tokens[:-1].view(-1, 1024)
+    target_inputs = tokens[1:].view(-1, 1024)
 
     data_chunk = train_inputs.shape[0] // N_SPLITS
     for i in range(1, N_SPLITS + 1):
