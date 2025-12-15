@@ -100,3 +100,6 @@ And for reporting:
 ```bash
 tensorboard --logdir "./logs" --port 7777 --host 0.0.0.0
 ```
+
+achieving good train/validation curve similarities:
+![Validation](./assets/validation.png)
